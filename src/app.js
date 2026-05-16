@@ -10,6 +10,9 @@ const articleRoutes = require('./routes/articleRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
 const userRoutes = require('./routes/userRoutes');
 const commentRoutes = require('./routes/commentRoutes');
+const boxOfficeRoutes = require('./routes/boxOfficeRoutes');
+const upcomingReleaseRoutes = require('./routes/upcomingReleaseRoutes');
+const photoRoutes = require('./routes/photoRoutes');
 
 const app = express();
 
@@ -25,6 +28,9 @@ app.use('/api/articles', articleRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/comments', commentRoutes);
+app.use('/api/box-office', boxOfficeRoutes);
+app.use('/api/upcoming', upcomingReleaseRoutes);
+app.use('/api/photos', photoRoutes);
 
 app.get('/api/health', (req, res) => res.json({ status: 'OK' }));
 

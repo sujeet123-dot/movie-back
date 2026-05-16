@@ -1,15 +1,24 @@
 const slugify = require('slugify');
 const Article = require('../models/Article');
+const Category = require('../models/Category');
 const APIFeatures = require('../utils/apiFeatures');
 const { cloudinary, uploadToCloudinary } = require('../config/cloudinary');
 
 const getArticles = async (req, res, next) => {
   try {
+    // Resolve categorySlug → ObjectId so slug-based filtering works
+    const query = { ...req.query };
+    if (query.categorySlug) {
+      const cat = await Category.findOne({ slug: query.categorySlug });
+      if (cat) query.category = cat._id.toString();
+      delete query.categorySlug;
+    }
+
     const baseQuery = Article.find({ status: 'published' })
       .populate('author', 'name avatar')
       .populate('category', 'name slug color');
 
-    const features = new APIFeatures(baseQuery, req.query)
+    const features = new APIFeatures(baseQuery, query)
       .filter()
       .search(['title', 'excerpt', 'tags'])
       .sort()

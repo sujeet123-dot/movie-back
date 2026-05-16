@@ -38,7 +38,9 @@ const getCategoryWithArticles = async (req, res, next) => {
 const createCategory = async (req, res, next) => {
   try {
     const { name, description, color } = req.body;
-    const slug = slugify(name, { lower: true, strict: true });
+    const slug = req.body.slug
+      ? req.body.slug.toLowerCase().replace(/[^a-z0-9/]+/g, '-').replace(/^-|-$/g, '')
+      : slugify(name, { lower: true, strict: true });
     const category = await Category.create({ name, slug, description, color });
     res.status(201).json({ category });
   } catch (err) {
