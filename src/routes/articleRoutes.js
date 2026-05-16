@@ -14,8 +14,13 @@ router.get('/admin', protect, adminOnly, getAdminArticles);
 router.get('/:slug', getArticleBySlug);
 router.get('/:slug/related', getRelatedArticles);
 
-router.post('/', protect, authorOrAdmin, upload.single('coverImage'), createArticle);
-router.put('/:id', protect, authorOrAdmin, upload.single('coverImage'), updateArticle);
+const articleUpload = upload.fields([
+  { name: 'coverImage', maxCount: 1 },
+  { name: 'gallery',    maxCount: 10 },
+]);
+
+router.post('/', protect, authorOrAdmin, articleUpload, createArticle);
+router.put('/:id', protect, authorOrAdmin, articleUpload, updateArticle);
 router.delete('/:id', protect, adminOnly, deleteArticle);
 
 module.exports = router;

@@ -10,8 +10,9 @@ const photoSchema = new mongoose.Schema(
       enum: ['events', 'red-carpet', 'candid', 'promotions', 'other'],
       default: 'events',
     },
-    caption:  { type: String, default: '' },
-    isActive: { type: Boolean, default: true },
+    caption:    { type: String, default: '' },
+    focalPoint: { type: String, default: 'center' },
+    isActive:   { type: Boolean, default: true },
   },
   { timestamps: true }
 );

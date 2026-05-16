@@ -104,15 +104,21 @@ const getMostPopular = async (req, res, next) => {
 
 const createArticle = async (req, res, next) => {
   try {
-    const { title, excerpt, content, category, tags, status, isFeatured, isBreaking, type, rating, readTime } = req.body;
+    const { title, excerpt, content, category, tags, status, isFeatured, isBreaking, type, rating, readTime, coverFocalPoint } = req.body;
 
     const slug = slugify(title, { lower: true, strict: true });
     const existing = await Article.findOne({ slug });
     if (existing) return res.status(400).json({ message: 'An article with this title already exists' });
 
-    if (!req.file) return res.status(400).json({ message: 'Cover image is required' });
+    const coverFile = req.files?.coverImage?.[0];
+    if (!coverFile) return res.status(400).json({ message: 'Cover image is required' });
 
-    const uploaded = await uploadToCloudinary(req.file.buffer);
+    const uploaded = await uploadToCloudinary(coverFile.buffer);
+
+    // Upload gallery images in parallel if provided
+    const galleryFiles = req.files?.gallery || [];
+    const galleryUploads = await Promise.all(galleryFiles.map((f) => uploadToCloudinary(f.buffer)));
+    const gallery = galleryUploads.map((u) => ({ url: u.secure_url, publicId: u.public_id }));
 
     const article = await Article.create({
       title,
@@ -121,6 +127,8 @@ const createArticle = async (req, res, next) => {
       content,
       coverImage: uploaded.secure_url,
       coverImagePublicId: uploaded.public_id,
+      coverFocalPoint: coverFocalPoint || 'center',
+      gallery,
       author: req.user._id,
       category,
       tags: tags ? tags.split(',').map((t) => t.trim()) : [],
@@ -152,15 +160,31 @@ const updateArticle = async (req, res, next) => {
 
     const updates = { ...req.body };
     if (updates.tags) updates.tags = updates.tags.split(',').map((t) => t.trim());
-    if (updates.isFeatured) updates.isFeatured = updates.isFeatured === 'true';
-    if (updates.isBreaking) updates.isBreaking = updates.isBreaking === 'true';
+    if (updates.isFeatured !== undefined) updates.isFeatured = updates.isFeatured === 'true';
+    if (updates.isBreaking !== undefined) updates.isBreaking = updates.isBreaking === 'true';
 
-    if (req.file) {
+    const coverFile = req.files?.coverImage?.[0];
+    if (coverFile) {
       if (article.coverImagePublicId) await cloudinary.uploader.destroy(article.coverImagePublicId);
-      const uploaded = await uploadToCloudinary(req.file.buffer);
+      const uploaded = await uploadToCloudinary(coverFile.buffer);
       updates.coverImage = uploaded.secure_url;
       updates.coverImagePublicId = uploaded.public_id;
     }
+
+    // Handle gallery: remove marked items, append new uploads
+    let gallery = [...(article.gallery || [])];
+    if (updates.galleryRemove) {
+      const removeIds = JSON.parse(updates.galleryRemove);
+      await Promise.all(removeIds.map((pid) => cloudinary.uploader.destroy(pid)));
+      gallery = gallery.filter((g) => !removeIds.includes(g.publicId));
+      delete updates.galleryRemove;
+    }
+    const galleryFiles = req.files?.gallery || [];
+    if (galleryFiles.length > 0) {
+      const newUploads = await Promise.all(galleryFiles.map((f) => uploadToCloudinary(f.buffer)));
+      gallery.push(...newUploads.map((u) => ({ url: u.secure_url, publicId: u.public_id })));
+    }
+    updates.gallery = gallery;
 
     if (updates.status === 'published' && article.status !== 'published') {
       updates.publishedAt = new Date();
@@ -182,6 +206,7 @@ const deleteArticle = async (req, res, next) => {
     if (!article) return res.status(404).json({ message: 'Article not found' });
 
     if (article.coverImagePublicId) await cloudinary.uploader.destroy(article.coverImagePublicId);
+    await Promise.all((article.gallery || []).map((g) => g.publicId && cloudinary.uploader.destroy(g.publicId)));
     await article.deleteOne();
 
     res.json({ message: 'Article deleted' });

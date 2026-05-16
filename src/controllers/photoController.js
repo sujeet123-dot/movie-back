@@ -7,9 +7,15 @@ const getPhotos = async (req, res, next) => {
     if (req.query.album) filter.album = req.query.album;
 
     const limit = parseInt(req.query.limit) || 12;
-    const photos = await Photo.find(filter).sort({ createdAt: -1 }).limit(limit);
+    const page  = parseInt(req.query.page)  || 1;
+    const skip  = (page - 1) * limit;
 
-    res.json({ photos });
+    const [photos, total] = await Promise.all([
+      Photo.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      Photo.countDocuments(filter),
+    ]);
+
+    res.json({ photos, total, page, limit, pages: Math.ceil(total / limit) });
   } catch (err) {
     next(err);
   }
@@ -74,4 +80,29 @@ const deletePhoto = async (req, res, next) => {
   }
 };
 
-module.exports = { getPhotos, createPhoto, updatePhoto, deletePhoto };
+const createPhotosBulk = async (req, res, next) => {
+  try {
+    if (!req.files || req.files.length === 0) return res.status(400).json({ message: 'No images provided' });
+
+    const { titlePrefix, album, caption, focalPoint } = req.body;
+
+    const uploads = await Promise.all(req.files.map((f) => uploadToCloudinary(f.buffer)));
+
+    const photos = await Photo.insertMany(
+      uploads.map((u, i) => ({
+        title: titlePrefix ? `${titlePrefix} ${i + 1}` : `Photo ${i + 1}`,
+        image: u.secure_url,
+        imagePublicId: u.public_id,
+        album: album || 'events',
+        caption: caption || '',
+        focalPoint: focalPoint || 'center',
+      }))
+    );
+
+    res.status(201).json({ photos, count: photos.length });
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = { getPhotos, createPhoto, createPhotosBulk, updatePhoto, deletePhoto };

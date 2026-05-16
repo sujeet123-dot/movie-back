@@ -8,6 +8,8 @@ const articleSchema = new mongoose.Schema(
     content: { type: String, required: true },
     coverImage: { type: String, required: true },
     coverImagePublicId: { type: String },
+    coverFocalPoint: { type: String, default: 'center' },
+    gallery: [{ url: { type: String }, publicId: { type: String } }],
     author: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     category: { type: mongoose.Schema.Types.ObjectId, ref: 'Category', required: true },
     tags: [{ type: String, lowercase: true, trim: true }],
