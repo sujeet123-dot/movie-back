@@ -6,11 +6,22 @@ const { cloudinary, uploadToCloudinary } = require('../config/cloudinary');
 
 const getArticles = async (req, res, next) => {
   try {
-    // Resolve categorySlug → ObjectId so slug-based filtering works
+    // Resolve categorySlug → ObjectId so slug-based filtering works.
+    // Try both the full slug and the leaf segment so articles assigned under
+    // a simple slug (e.g. 'bollywood') appear when queried via the full path
+    // slug (e.g. 'ott') and vice-versa.
     const query = { ...req.query };
     if (query.categorySlug) {
-      const cat = await Category.findOne({ slug: query.categorySlug });
-      if (cat) query.category = cat._id.toString();
+      const slugVariants = [...new Set([
+        query.categorySlug,
+        query.categorySlug.split('/').pop(),
+      ])];
+      const cats = await Category.find({ slug: { $in: slugVariants } });
+      if (cats.length === 1) {
+        query.category = cats[0]._id.toString();
+      } else if (cats.length > 1) {
+        query.category = { $in: cats.map((c) => c._id) };
+      }
       delete query.categorySlug;
     }
 

@@ -7,6 +7,7 @@ const { adminOnly } = require('../middleware/adminMiddleware');
 
 router.get('/', getCategories);
 router.get('/:slug', getCategoryWithArticles);
+router.get('/:parent/:slug', getCategoryWithArticles);
 
 router.post('/', protect, adminOnly, createCategory);
 router.put('/:id', protect, adminOnly, updateCategory);

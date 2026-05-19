@@ -13,20 +13,44 @@ const getCategories = async (req, res, next) => {
 
 const getCategoryWithArticles = async (req, res, next) => {
   try {
-    const category = await Category.findOne({ slug: req.params.slug });
-    if (!category) return res.status(404).json({ message: 'Category not found' });
+    const fullSlug = req.params.parent
+      ? `${req.params.parent}/${req.params.slug}`
+      : req.params.slug;
+    const leafSlug = req.params.slug || fullSlug;
+
+    // Collect all slug variants to search (e.g. 'film/bollywood' and 'bollywood').
+    // This handles articles created under a simple slug before the category was
+    // renamed to a hierarchical path, or vice-versa.
+    const slugsToTry = [...new Set([fullSlug, leafSlug])];
+    const matchingCategories = await Category.find({ slug: { $in: slugsToTry } });
+
+    if (!matchingCategories.length) {
+      return res.status(404).json({ message: 'Category not found' });
+    }
+
+    // Prefer the most-specific match as the display category
+    const category =
+      matchingCategories.find((c) => c.slug === fullSlug) || matchingCategories[0];
+
+    // Query articles from ALL matching category IDs so articles assigned to
+    // 'bollywood' still appear at /category/film/bollywood and vice-versa.
+    const categoryIds = matchingCategories.map((c) => c._id);
+    const articleFilter = {
+      category: categoryIds.length > 1 ? { $in: categoryIds } : categoryIds[0],
+      status: 'published',
+    };
 
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 12;
 
     const [articles, total] = await Promise.all([
-      Article.find({ category: category._id, status: 'published' })
+      Article.find(articleFilter)
         .sort('-publishedAt')
         .skip((page - 1) * limit)
         .limit(limit)
         .populate('author', 'name avatar')
         .populate('category', 'name slug color'),
-      Article.countDocuments({ category: category._id, status: 'published' }),
+      Article.countDocuments(articleFilter),
     ]);
 
     res.json({ category, articles, pagination: { total, page, limit, pages: Math.ceil(total / limit) } });
