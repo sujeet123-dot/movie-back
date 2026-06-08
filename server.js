@@ -2,6 +2,7 @@ require('dotenv').config();
 const app = require('./src/app');
 const connectDB = require('./src/config/db');
 const Category = require('./src/models/Category');
+const { startScheduler } = require('./src/utils/scheduler');
 
 const PORT = process.env.PORT || 5000;
 
@@ -21,6 +22,7 @@ async function seedCategories() {
 
 connectDB().then(async () => {
   await seedCategories();
+  startScheduler();
   app.listen(PORT, () => {
     console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
   });

@@ -1,7 +1,7 @@
 const router = require('express').Router();
 const {
   getArticles, getFeaturedArticles, getArticleBySlug, getRelatedArticles,
-  getMostPopular, createArticle, updateArticle, deleteArticle, getAdminArticles,
+  getMostPopular, createArticle, updateArticle, deleteArticle, getAdminArticles, toggleStatus, getStats,
 } = require('../controllers/articleController');
 const { protect } = require('../middleware/authMiddleware');
 const { authorOrAdmin, adminOnly } = require('../middleware/adminMiddleware');
@@ -11,6 +11,8 @@ router.get('/', getArticles);
 router.get('/featured', getFeaturedArticles);
 router.get('/popular', getMostPopular);
 router.get('/admin', protect, adminOnly, getAdminArticles);
+router.get('/stats', protect, authorOrAdmin, getStats);
+router.patch('/:id/status', protect, authorOrAdmin, toggleStatus);
 router.get('/:slug', getArticleBySlug);
 router.get('/:slug/related', getRelatedArticles);
 

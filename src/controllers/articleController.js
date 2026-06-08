@@ -1,6 +1,8 @@
 const slugify = require('slugify');
 const Article = require('../models/Article');
 const Category = require('../models/Category');
+const Photo = require('../models/Photo');
+const Comment = require('../models/Comment');
 const APIFeatures = require('../utils/apiFeatures');
 const { cloudinary, uploadToCloudinary } = require('../config/cloudinary');
 
@@ -150,6 +152,7 @@ const createArticle = async (req, res, next) => {
       rating: rating ? parseFloat(rating) : undefined,
       readTime: readTime ? parseInt(readTime) : 3,
       publishedAt: status === 'published' ? new Date() : undefined,
+      scheduledAt: status === 'scheduled' && req.body.scheduledAt ? new Date(req.body.scheduledAt) : undefined,
     });
 
     await article.populate(['author', 'category']);
@@ -199,6 +202,13 @@ const updateArticle = async (req, res, next) => {
 
     if (updates.status === 'published' && article.status !== 'published') {
       updates.publishedAt = new Date();
+      updates.scheduledAt = null;
+    }
+    if (updates.status === 'scheduled' && updates.scheduledAt) {
+      updates.scheduledAt = new Date(updates.scheduledAt);
+    }
+    if (updates.status === 'draft') {
+      updates.scheduledAt = null;
     }
 
     const updated = await Article.findByIdAndUpdate(req.params.id, updates, { new: true, runValidators: true })
@@ -244,6 +254,64 @@ const getAdminArticles = async (req, res, next) => {
   }
 };
 
+const toggleStatus = async (req, res, next) => {
+  try {
+    const article = await Article.findById(req.params.id);
+    if (!article) return res.status(404).json({ message: 'Article not found' });
+
+    const isOwner = article.author.toString() === req.user._id.toString();
+    if (!isOwner && req.user.role !== 'admin') {
+      return res.status(403).json({ message: 'Not authorized' });
+    }
+
+    const newStatus = article.status === 'published' ? 'draft' : 'published';
+    const updates = { status: newStatus, scheduledAt: null };
+    if (newStatus === 'published' && !article.publishedAt) {
+      updates.publishedAt = new Date();
+    }
+
+    const updated = await Article.findByIdAndUpdate(req.params.id, updates, { new: true })
+      .populate('author', 'name')
+      .populate('category', 'name slug');
+
+    res.json({ article: updated });
+  } catch (err) {
+    next(err);
+  }
+};
+
+const getStats = async (req, res, next) => {
+  try {
+    const [agg, photoCount, pendingComments] = await Promise.all([
+      Article.aggregate([
+        {
+          $group: {
+            _id: null,
+            total:     { $sum: 1 },
+            published: { $sum: { $cond: [{ $eq: ['$status', 'published'] }, 1, 0] } },
+            drafts:    { $sum: { $cond: [{ $eq: ['$status', 'draft'] },      1, 0] } },
+            totalViews:{ $sum: '$views' },
+          },
+        },
+      ]),
+      Photo.countDocuments({ isActive: true }),
+      Comment.countDocuments({ isApproved: false }),
+    ]);
+
+    const counts = agg[0] || { total: 0, published: 0, drafts: 0, totalViews: 0 };
+
+    const topArticles = await Article.find({ status: 'published' })
+      .sort('-views')
+      .limit(5)
+      .select('title slug views category')
+      .populate('category', 'name');
+
+    res.json({ ...counts, photoCount, pendingComments, topArticles });
+  } catch (err) {
+    next(err);
+  }
+};
+
 module.exports = {
   getArticles,
   getFeaturedArticles,
@@ -254,4 +322,6 @@ module.exports = {
   updateArticle,
   deleteArticle,
   getAdminArticles,
+  toggleStatus,
+  getStats,
 };
