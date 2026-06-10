@@ -4,7 +4,7 @@ const connectDB = require('./src/config/db');
 const Category = require('./src/models/Category');
 const { startScheduler } = require('./src/utils/scheduler');
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 8080;
 
 const DEFAULT_CATEGORIES = [
   { name: 'Film',     slug: 'film',     description: 'Movie news, reviews and features',        color: '#2563eb' },
